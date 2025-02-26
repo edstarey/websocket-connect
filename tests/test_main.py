@@ -1,10 +1,14 @@
 import json
 import urllib.request
+
+import boto3
 import pytest
 import jwt
 from jwt.algorithms import RSAAlgorithm
 from app.main import lambda_handler, conn_table
 
+import os
+dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 # --- Helper Classes and Dummy Functions ---
 
 class DummyResponse:
