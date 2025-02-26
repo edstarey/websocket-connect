@@ -1,6 +1,6 @@
 import os, json, logging, urllib.request
 import jwt  # PyJWT
-from jwt.algorithms import RSAAlgorithm
+from jwt.algorithms import RSAAlgorithm  # noinspection PyUnresolvedReferences
 import boto3
 
 logger = logging.getLogger()
