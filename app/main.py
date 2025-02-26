@@ -18,7 +18,7 @@ DDB_TABLE = os.environ['CONNECTIONS_TABLE']
 # Assume conn_table is a boto3 DynamoDB Table resource
 import boto3
 
-dynamodb = boto3.resource('dynamodb')
+dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 conn_table = dynamodb.Table(DDB_TABLE)
 
 _jwks_cache = None
