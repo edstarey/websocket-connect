@@ -1,6 +1,10 @@
-import os, json, logging, urllib.request
+import os
+import json
+import logging
+import urllib.request
+
 import jwt  # PyJWT
-from jwt.algorithms import RSAAlgorithm  # noinspection PyUnresolvedReferences
+from jwt.algorithms import RSAAlgorithm
 import boto3
 
 logger = logging.getLogger()
@@ -10,7 +14,9 @@ logger.setLevel(logging.INFO)
 USER_POOL_ID = os.environ['COGNITO_USER_POOL_ID']
 APP_CLIENT_ID = os.environ['COGNITO_APP_CLIENT_ID']
 DDB_TABLE = os.environ['CONNECTIONS_TABLE']
-dynamodb = boto3.resource('dynamodb')
+
+# Use the AWS_REGION environment variable (or default to 'us-east-1')
+dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 conn_table = dynamodb.Table(DDB_TABLE)
 
 # Cache JWKS to avoid repeated network calls
@@ -48,10 +54,9 @@ def lambda_handler(event, context):
         username = claims.get('cognito:username') or claims.get('email') or user_id
     except Exception as e:
         logger.error(f"JWT validation failed: {e}")
-        # Token invalid or verification failed
         raise Exception("Unauthorized")
 
-    # At this point, token is valid. Store the connection.
+    # Store the connection
     connection_id = event['requestContext']['connectionId']
     try:
         conn_table.put_item(Item={
@@ -61,12 +66,11 @@ def lambda_handler(event, context):
         logger.info(f"Stored connection {connection_id} for user {user_id}")
     except Exception as db_err:
         logger.error(f"Failed to store connection: {db_err}")
-        # If we cannot store the connection, refuse the connection
         raise Exception("Unauthorized")
 
     # Build an IAM policy to allow the connection
     principal_id = user_id
-    method_arn = event.get('methodArn')  # format: arn:aws:execute-api:region:acct:apiId/stage/$connect
+    method_arn = event.get('methodArn')
     policy = {
         "principalId": principal_id,
         "policyDocument": {
@@ -77,7 +81,7 @@ def lambda_handler(event, context):
                 "Resource": method_arn
             }]
         },
-        "context": {  # additional context (optional)
+        "context": {
             "username": username
         }
     }
