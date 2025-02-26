@@ -28,7 +28,7 @@ jobs:
         run: |
           python -m venv venv
           ./venv/bin/pip install --upgrade pip
-          ./venv/bin/pip install -r requirements/requirements-dev.txt
+          ./venv/bin/pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
 
       - name: Run Tests
         run: |
