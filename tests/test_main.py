@@ -1,15 +1,9 @@
-import os
 import json
 import urllib.request
 import pytest
 import jwt
 from jwt.algorithms import RSAAlgorithm
 from app.main import lambda_handler, conn_table
-
-
-# Import the lambda handler and dependencies from your lambda module.
-# Adjust the import below to the correct module name.
-
 
 # --- Helper Classes and Dummy Functions ---
 
@@ -22,7 +16,6 @@ class DummyResponse:
         return self
     def __exit__(self, exc_type, exc_value, traceback):
         pass
-
 
 def dummy_urlopen(url):
     # Return a dummy JWKS response with a key matching "test_kid"
@@ -38,15 +31,12 @@ def dummy_urlopen(url):
     }
     return DummyResponse(json.dumps(dummy_jwks))
 
-
 def dummy_from_jwk(jwk_str):
-    # Return a dummy public key (the actual value is irrelevant because we patch jwt.decode)
+    # Return a dummy public key (actual value irrelevant because we patch jwt.decode)
     return "dummy_public_key"
-
 
 def dummy_get_unverified_header(token):
     return {"kid": "test_kid"}
-
 
 def dummy_jwt_decode(token, key, algorithms, audience):
     # Return dummy claims matching the expected audience and including user info
@@ -56,32 +46,14 @@ def dummy_jwt_decode(token, key, algorithms, audience):
         "aud": audience
     }
 
-
 def dummy_jwt_decode_fail(token, key, algorithms, audience):
     raise Exception("Invalid token")
-
 
 def dummy_put_item_success(Item):
     return {}
 
-
 def dummy_put_item_fail(Item):
     raise Exception("DB error")
-
-
-# --- Pytest Fixtures ---
-
-@pytest.fixture(autouse=True)
-def set_env(monkeypatch):
-    # Set required environment variables for the lambda
-    monkeypatch.setenv('COGNITO_USER_POOL_ID', 'dummy_pool')
-    monkeypatch.setenv('COGNITO_APP_CLIENT_ID', 'dummy_client')
-    monkeypatch.setenv('CONNECTIONS_TABLE', 'dummy_table')
-    monkeypatch.setenv('AWS_REGION', 'us-east-1')
-    # Reset the JWKS cache before each test for isolation
-    global _jwks_cache
-    _jwks_cache = None
-
 
 # --- Tests ---
 
@@ -95,7 +67,6 @@ def test_no_token(monkeypatch):
     }
     with pytest.raises(Exception, match="Unauthorized"):
         lambda_handler(event, None)
-
 
 def test_valid_token_header(monkeypatch):
     # Test valid token provided in Authorization header
@@ -119,7 +90,6 @@ def test_valid_token_header(monkeypatch):
     assert result["policyDocument"]["Statement"][0]["Resource"] == event["methodArn"]
     assert result["context"]["username"] == "testuser"
 
-
 def test_valid_token_query_param(monkeypatch):
     # Test valid token provided as a query parameter (using 'authToken')
     event = {
@@ -142,7 +112,6 @@ def test_valid_token_query_param(monkeypatch):
     assert result["policyDocument"]["Statement"][0]["Resource"] == event["methodArn"]
     assert result["context"]["username"] == "testuser"
 
-
 def test_invalid_jwt(monkeypatch):
     # Test scenario where jwt.decode fails (invalid token)
     event = {
@@ -159,7 +128,6 @@ def test_invalid_jwt(monkeypatch):
 
     with pytest.raises(Exception, match="Unauthorized"):
         lambda_handler(event, None)
-
 
 def test_db_failure(monkeypatch):
     # Test scenario where storing the connection fails (e.g., DynamoDB error)
