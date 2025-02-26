@@ -9,4 +9,4 @@ RUN pip install --upgrade pip && \
 # Copy the entire project into the Lambda task root
 COPY . ${LAMBDA_TASK_ROOT}
 
-CMD ["app.main.handler"]
+CMD ["app.main.lambda_handler"]
