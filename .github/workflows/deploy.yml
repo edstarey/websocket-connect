@@ -33,7 +33,10 @@ jobs:
 
       - name: Run Tests
         run: |
-          echo "Running tests with PYTHONPATH set..."
+          COGNITO_USER_POOL_ID=dummy_pool \
+          COGNITO_APP_CLIENT_ID=dummy_client \
+          CONNECTIONS_TABLE=dummy_table \
+          AWS_REGION=us-east-1 \
           PYTHONPATH=. ./venv/bin/pytest tests --maxfail=1 --disable-warnings
 
       - name: Configure AWS Credentials
