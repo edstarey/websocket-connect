@@ -1,67 +1,112 @@
-# file: authorizer.py
+# file: test_authorizer.py
 import json
-import os
+import pytest
 import urllib.request
 import jwt
 from jwt.algorithms import RSAAlgorithm
+from unittest.mock import patch
 
-COGNITO_POOL_ID = os.environ['COGNITO_USER_POOL_ID']
-COGNITO_REGION = os.environ['AWS_REGION']
-JWKS_URL = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_POOL_ID}/.well-known/jwks.json"
-jwks_cache = None
+from app.main import lambda_handler
 
-def lambda_handler(event, context):
-    # 1. Get token from query params
-    token = event.get("queryStringParameters", {}).get("token", "")
-    if not token:
-        print("No token provided")
-        raise Exception("Unauthorized")
+# Dummy JWKS data
+DUMMY_JWKS = {
+    "keys": [{
+        "kid": "test_kid",
+        "kty": "RSA",
+        "alg": "RS256",
+        "use": "sig",
+        "n": "dummy_n",
+        "e": "AQAB"
+    }]
+}
 
-    # Remove "Bearer " prefix if present
-    if token.lower().startswith("bearer "):
-        token = token.split(" ", 1)[1]
+###############################
+# Mocks / Helper Functions
+###############################
 
-    # 2. Verify JWT using Cognito JWKS
-    global jwks_cache
-    if jwks_cache is None:
-        with urllib.request.urlopen(JWKS_URL) as response:
-            jwks_cache = json.load(response)
+class DummyResponse:
+    """Simulates the response object returned by urllib.request.urlopen."""
+    def __init__(self, data):
+        self.data = data.encode('utf-8')
 
-    try:
-        unverified_header = jwt.get_unverified_header(token)
-        kid = unverified_header['kid']
-        key = next(item for item in jwks_cache['keys'] if item["kid"] == kid)
-    except Exception as e:
-        print("Token kid not found in JWKS:", e)
-        raise Exception("Unauthorized")
+    def read(self):
+        return self.data
 
-    public_key = RSAAlgorithm.from_jwk(json.dumps(key))
-    try:
-        claims = jwt.decode(
-            token,
-            public_key,
-            algorithms=[key["alg"]],  # e.g. RS256
-            audience=os.environ['COGNITO_APP_CLIENT_ID'],  # must match your App Client ID
-            issuer=f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_POOL_ID}"
-        )
-    except Exception as err:
-        print("JWT verification failed:", err)
-        raise Exception("Unauthorized")
+    def __enter__(self):
+        return self
 
-    # 3. Build allow policy with context
-    principal_id = claims.get("sub") or "user"
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+def mock_urlopen(url):
+    """Mock urlopen that returns our dummy JWKS JSON."""
+    return DummyResponse(json.dumps(DUMMY_JWKS))
+
+def mock_get_unverified_header(token):
+    """Pretend all tokens have kid=test_kid in the header."""
+    return {"kid": "test_kid"}
+
+def mock_from_jwk(jwk_str):
+    """Return a placeholder public key object."""
+    return "dummy_public_key"
+
+def mock_jwt_decode_success(token, key, algorithms, audience, issuer):
+    """Return a fake claims dict to simulate successful decode."""
     return {
-        "principalId": principal_id,
-        "policyDocument": {
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Action": "execute-api:Invoke",
-                "Effect": "Allow",
-                "Resource": event["methodArn"]
-            }]
-        },
-        "context": {
-            "username": claims.get("cognito:username", ""),
-            "sub": claims.get("sub", "")
-        }
+        "sub": "user123",
+        "cognito:username": "testuser",
+        "aud": audience,
+        # 'iss' matches the issuer, so no error
     }
+
+def mock_jwt_decode_fail(token, key, algorithms, audience, issuer):
+    """Always raise an exception to simulate invalid token."""
+    raise Exception("Invalid token")
+
+
+###############################
+# Pytest Test Cases
+###############################
+
+@patch.object(urllib.request, "urlopen", side_effect=mock_urlopen)
+def test_no_token(mock_url):
+    """No token in query params -> Unauthorized"""
+    event = {
+        "queryStringParameters": {},
+        "requestContext": {"connectionId": "conn1"},
+        "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
+    }
+    with pytest.raises(Exception, match="Unauthorized"):
+        lambda_handler(event, None)
+
+@patch.object(urllib.request, "urlopen", side_effect=mock_urlopen)
+@patch.object(RSAAlgorithm, "from_jwk", side_effect=mock_from_jwk)
+@patch.object(jwt, "get_unverified_header", side_effect=mock_get_unverified_header)
+@patch.object(jwt, "decode", side_effect=mock_jwt_decode_success)
+def test_valid_token_query_param(mock_decode, mock_header, mock_jwk, mock_url):
+    """Token in query param -> Should succeed"""
+    event = {
+        "queryStringParameters": {"token": "dummy_token"},
+        "requestContext": {"connectionId": "conn2"},
+        "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
+    }
+    result = lambda_handler(event, None)
+    assert result["principalId"] == "user123"
+    assert result["context"]["username"] == "testuser"
+    assert result["policyDocument"]["Statement"][0]["Effect"] == "Allow"
+    assert result["policyDocument"]["Statement"][0]["Resource"] == event["methodArn"]
+
+
+@patch.object(urllib.request, "urlopen", side_effect=mock_urlopen)
+@patch.object(RSAAlgorithm, "from_jwk", side_effect=mock_from_jwk)
+@patch.object(jwt, "get_unverified_header", side_effect=mock_get_unverified_header)
+@patch.object(jwt, "decode", side_effect=mock_jwt_decode_fail)
+def test_invalid_jwt(mock_decode, mock_header, mock_jwk, mock_url):
+    """Invalid token -> Unauthorized"""
+    event = {
+        "queryStringParameters": {"token": "dummy_token"},
+        "requestContext": {"connectionId": "conn4"},
+        "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
+    }
+    with pytest.raises(Exception, match="Unauthorized"):
+        lambda_handler(event, None)
