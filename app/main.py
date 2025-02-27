@@ -28,23 +28,29 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", json.dumps(event))
 
     token = None
-    # First, try to get token from the Authorization header
-    if event.get('headers') and event['headers'].get('Authorization'):
-        auth_header = event['headers']['Authorization']
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header.split(" ", 1)[1]
-        else:
-            token = auth_header
+    # 1. Try getting token from the Authorization header.
+    if event.get('headers'):
+        auth_header = event['headers'].get('Authorization')
+        if auth_header:
+            if auth_header.lower().startswith("bearer "):
+                token = auth_header.split(" ", 1)[1]
+            else:
+                token = auth_header
 
-    # Then try queryStringParameters
+    # 2. Then try queryStringParameters (if present).
     if not token and event.get('queryStringParameters'):
         token = event['queryStringParameters'].get('token')
 
-    # Finally, if still no token, try to parse rawQueryString
+    # 3. Finally, if still no token, parse rawQueryString manually.
     if not token and event.get('rawQueryString'):
-        # Simple parsing: assumes query string format: "token=XYZ&..."
-        params = dict(param.split('=') for param in event['rawQueryString'].split('&') if '=' in param)
-        token = params.get('token')
+        raw_qs = event['rawQueryString']
+        # Simple parsing: split by '&' and '=' to build a dictionary.
+        try:
+            qs_pairs = [pair.split('=', 1) for pair in raw_qs.split('&') if '=' in pair]
+            qs_dict = {k: v for k, v in qs_pairs}
+            token = qs_dict.get('token')
+        except Exception as e:
+            logger.error("Failed to parse rawQueryString: %s", e)
 
     if not token:
         logger.warning("No JWT token found in connect request")
@@ -68,7 +74,6 @@ def lambda_handler(event, context):
         logger.error("JWT validation failed: %s", e)
         raise Exception("Unauthorized")
 
-    # Attempt to store connection info in DynamoDB
     try:
         connection_id = event.get("requestContext", {}).get("connectionId")
         conn_table.put_item(Item={"UserId": principal_id, "ConnectionId": connection_id})
