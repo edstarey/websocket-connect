@@ -28,23 +28,27 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", json.dumps(event))
 
     token = None
-    # 1. Try getting token from the Authorization header.
+
+    # 1. Try to get token from the Authorization header.
     if event.get('headers'):
         auth_header = event['headers'].get('Authorization')
+        logger.info("Authorization header: %s", auth_header)
         if auth_header:
             if auth_header.lower().startswith("bearer "):
                 token = auth_header.split(" ", 1)[1]
             else:
                 token = auth_header
 
-    # 2. Then try queryStringParameters (if present).
-    if not token and event.get('queryStringParameters'):
-        token = event['queryStringParameters'].get('token')
+    # 2. Try to get token from queryStringParameters.
+    qs_params = event.get('queryStringParameters')
+    logger.info("queryStringParameters: %s", qs_params)
+    if not token and qs_params:
+        token = qs_params.get('token')
 
-    # 3. Finally, if still no token, parse rawQueryString manually.
+    # 3. If still no token, parse rawQueryString manually.
     if not token and event.get('rawQueryString'):
         raw_qs = event['rawQueryString']
-        # Simple parsing: split by '&' and '=' to build a dictionary.
+        logger.info("rawQueryString: %s", raw_qs)
         try:
             qs_pairs = [pair.split('=', 1) for pair in raw_qs.split('&') if '=' in pair]
             qs_dict = {k: v for k, v in qs_pairs}
