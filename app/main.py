@@ -28,16 +28,23 @@ def lambda_handler(event, context):
     logger.info("Received event: %s", json.dumps(event))
 
     token = None
-    # First try to get token from Authorization header.
+    # First, try to get token from the Authorization header
     if event.get('headers') and event['headers'].get('Authorization'):
         auth_header = event['headers']['Authorization']
         if auth_header.lower().startswith("bearer "):
             token = auth_header.split(" ", 1)[1]
         else:
             token = auth_header
-    # Next, try query string parameter 'token'
+
+    # Then try queryStringParameters
     if not token and event.get('queryStringParameters'):
         token = event['queryStringParameters'].get('token')
+
+    # Finally, if still no token, try to parse rawQueryString
+    if not token and event.get('rawQueryString'):
+        # Simple parsing: assumes query string format: "token=XYZ&..."
+        params = dict(param.split('=') for param in event['rawQueryString'].split('&') if '=' in param)
+        token = params.get('token')
 
     if not token:
         logger.warning("No JWT token found in connect request")
