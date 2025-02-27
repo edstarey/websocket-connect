@@ -1,145 +1,67 @@
-# import json
-# import urllib.request
-# import pytest
-# import jwt
-# from jwt.algorithms import RSAAlgorithm
-# from app.main import lambda_handler, conn_table
-#
-# # --- Helper Classes and Dummy Functions ---
-#
-# class DummyResponse:
-#     def __init__(self, data):
-#         self.data = data.encode('utf-8')
-#     def read(self):
-#         return self.data
-#     def __enter__(self):
-#         return self
-#     def __exit__(self, exc_type, exc_value, traceback):
-#         pass
-#
-# def dummy_urlopen(url):
-#     dummy_jwks = {
-#         "keys": [{
-#             "kid": "test_kid",
-#             "kty": "RSA",
-#             "alg": "RS256",
-#             "use": "sig",
-#             "n": "dummy_n",
-#             "e": "AQAB"
-#         }]
-#     }
-#     return DummyResponse(json.dumps(dummy_jwks))
-#
-# def dummy_from_jwk(jwk_str):
-#     return "dummy_public_key"
-#
-# def dummy_get_unverified_header(token):
-#     return {"kid": "test_kid"}
-#
-# def dummy_jwt_decode(token, key, algorithms, audience):
-#     return {
-#         "sub": "user123",
-#         "cognito:username": "testuser",
-#         "aud": audience
-#     }
-#
-# def dummy_jwt_decode_fail(token, key, algorithms, audience):
-#     raise Exception("Invalid token")
-#
-# def dummy_put_item_success(Item):
-#     return {}
-#
-# def dummy_put_item_fail(Item):
-#     raise Exception("DB error")
-#
-# # --- Tests ---
-#
-# def test_no_token(monkeypatch):
-#     event = {
-#         "headers": {},
-#         "queryStringParameters": {},
-#         "requestContext": {"connectionId": "conn1"},
-#         "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
-#     }
-#     with pytest.raises(Exception, match="Unauthorized"):
-#         lambda_handler(event, None)
-#
-# def test_valid_token_header(monkeypatch):
-#     event = {
-#         "headers": {"Authorization": "Bearer dummy_token"},
-#         "requestContext": {"connectionId": "conn1"},
-#         "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
-#     }
-#     monkeypatch.setattr(urllib.request, "urlopen", dummy_urlopen)
-#     monkeypatch.setattr(RSAAlgorithm, "from_jwk", dummy_from_jwk)
-#     monkeypatch.setattr(jwt, "get_unverified_header", dummy_get_unverified_header)
-#     monkeypatch.setattr(jwt, "decode", dummy_jwt_decode)
-#     monkeypatch.setattr(conn_table, "put_item", dummy_put_item_success)
-#
-#     result = lambda_handler(event, None)
-#     assert result["principalId"] == "user123"
-#     assert result["policyDocument"]["Statement"][0]["Resource"] == event["methodArn"]
-#     assert result["context"]["username"] == "testuser"
-#
-# def test_valid_token_query_param(monkeypatch):
-#     event = {
-#         "queryStringParameters": {"token": "dummy_token"},
-#         "requestContext": {"connectionId": "conn2"},
-#         "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
-#     }
-#     monkeypatch.setattr(urllib.request, "urlopen", dummy_urlopen)
-#     monkeypatch.setattr(RSAAlgorithm, "from_jwk", dummy_from_jwk)
-#     monkeypatch.setattr(jwt, "get_unverified_header", dummy_get_unverified_header)
-#     monkeypatch.setattr(jwt, "decode", dummy_jwt_decode)
-#     monkeypatch.setattr(conn_table, "put_item", dummy_put_item_success)
-#
-#     result = lambda_handler(event, None)
-#     assert result["principalId"] == "user123"
-#     assert result["policyDocument"]["Statement"][0]["Resource"] == event["methodArn"]
-#     assert result["context"]["username"] == "testuser"
-#
-# def test_valid_token_raw_query(monkeypatch):
-#     event = {
-#         "rawQueryString": "token=dummy_token",
-#         "requestContext": {"connectionId": "conn5"},
-#         "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
-#     }
-#     monkeypatch.setattr(urllib.request, "urlopen", dummy_urlopen)
-#     monkeypatch.setattr(RSAAlgorithm, "from_jwk", dummy_from_jwk)
-#     monkeypatch.setattr(jwt, "get_unverified_header", dummy_get_unverified_header)
-#     monkeypatch.setattr(jwt, "decode", dummy_jwt_decode)
-#     monkeypatch.setattr(conn_table, "put_item", dummy_put_item_success)
-#
-#     result = lambda_handler(event, None)
-#     assert result["principalId"] == "user123"
-#     assert result["policyDocument"]["Statement"][0]["Resource"] == event["methodArn"]
-#     assert result["context"]["username"] == "testuser"
-#
-# def test_invalid_jwt(monkeypatch):
-#     event = {
-#         "headers": {"Authorization": "Bearer dummy_token"},
-#         "requestContext": {"connectionId": "conn3"},
-#         "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
-#     }
-#     monkeypatch.setattr(urllib.request, "urlopen", dummy_urlopen)
-#     monkeypatch.setattr(RSAAlgorithm, "from_jwk", dummy_from_jwk)
-#     monkeypatch.setattr(jwt, "get_unverified_header", dummy_get_unverified_header)
-#     monkeypatch.setattr(jwt, "decode", dummy_jwt_decode_fail)
-#
-#     with pytest.raises(Exception, match="Unauthorized"):
-#         lambda_handler(event, None)
-#
-# def test_db_failure(monkeypatch):
-#     event = {
-#         "headers": {"Authorization": "Bearer dummy_token"},
-#         "requestContext": {"connectionId": "conn4"},
-#         "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
-#     }
-#     monkeypatch.setattr(urllib.request, "urlopen", dummy_urlopen)
-#     monkeypatch.setattr(RSAAlgorithm, "from_jwk", dummy_from_jwk)
-#     monkeypatch.setattr(jwt, "get_unverified_header", dummy_get_unverified_header)
-#     monkeypatch.setattr(jwt, "decode", dummy_jwt_decode)
-#     monkeypatch.setattr(conn_table, "put_item", dummy_put_item_fail)
-#
-#     with pytest.raises(Exception, match="Unauthorized"):
-#         lambda_handler(event, None)
+# file: authorizer.py
+import json
+import os
+import urllib.request
+import jwt
+from jwt.algorithms import RSAAlgorithm
+
+COGNITO_POOL_ID = os.environ['COGNITO_USER_POOL_ID']
+COGNITO_REGION = os.environ['AWS_REGION']
+JWKS_URL = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_POOL_ID}/.well-known/jwks.json"
+jwks_cache = None
+
+def lambda_handler(event, context):
+    # 1. Get token from query params
+    token = event.get("queryStringParameters", {}).get("token", "")
+    if not token:
+        print("No token provided")
+        raise Exception("Unauthorized")
+
+    # Remove "Bearer " prefix if present
+    if token.lower().startswith("bearer "):
+        token = token.split(" ", 1)[1]
+
+    # 2. Verify JWT using Cognito JWKS
+    global jwks_cache
+    if jwks_cache is None:
+        with urllib.request.urlopen(JWKS_URL) as response:
+            jwks_cache = json.load(response)
+
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        kid = unverified_header['kid']
+        key = next(item for item in jwks_cache['keys'] if item["kid"] == kid)
+    except Exception as e:
+        print("Token kid not found in JWKS:", e)
+        raise Exception("Unauthorized")
+
+    public_key = RSAAlgorithm.from_jwk(json.dumps(key))
+    try:
+        claims = jwt.decode(
+            token,
+            public_key,
+            algorithms=[key["alg"]],  # e.g. RS256
+            audience=os.environ['COGNITO_APP_CLIENT_ID'],  # must match your App Client ID
+            issuer=f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_POOL_ID}"
+        )
+    except Exception as err:
+        print("JWT verification failed:", err)
+        raise Exception("Unauthorized")
+
+    # 3. Build allow policy with context
+    principal_id = claims.get("sub") or "user"
+    return {
+        "principalId": principal_id,
+        "policyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Action": "execute-api:Invoke",
+                "Effect": "Allow",
+                "Resource": event["methodArn"]
+            }]
+        },
+        "context": {
+            "username": claims.get("cognito:username", ""),
+            "sub": claims.get("sub", "")
+        }
+    }
