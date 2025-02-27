@@ -2,8 +2,10 @@ import os
 import json
 import logging
 import urllib.request
+import urllib.parse
 import jwt
 from jwt.algorithms import RSAAlgorithm
+import boto3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -12,21 +14,15 @@ logger.setLevel(logging.INFO)
 USER_POOL_ID = os.environ['COGNITO_USER_POOL_ID']
 APP_CLIENT_ID = os.environ['COGNITO_APP_CLIENT_ID']
 REGION = os.environ['COGNITO_REGION']
-# Using CONNECTIONS_TABLE since our code expects that key
 DDB_TABLE = os.environ['CONNECTIONS_TABLE']
-
-# Assume conn_table is a boto3 DynamoDB Table resource
-import boto3
 
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 conn_table = dynamodb.Table(DDB_TABLE)
 
 _jwks_cache = None
 
-
 def lambda_handler(event, context):
     logger.info("Received event: %s", json.dumps(event))
-
     token = None
 
     # 1. Try to get token from the Authorization header.
@@ -40,26 +36,23 @@ def lambda_handler(event, context):
                 token = auth_header
 
     # 2. Try to get token from queryStringParameters.
-    qs_params = event.get('queryStringParameters')
-    logger.info("queryStringParameters: %s", qs_params)
-    if not token and qs_params:
-        token = qs_params.get('token')
+    if not token and event.get('queryStringParameters'):
+        token = event['queryStringParameters'].get('token')
 
-    # 3. If still no token, parse rawQueryString manually.
+    # 3. Fallback: parse rawQueryString robustly using urllib.parse.
     if not token and event.get('rawQueryString'):
         raw_qs = event['rawQueryString']
         logger.info("rawQueryString: %s", raw_qs)
-        try:
-            qs_pairs = [pair.split('=', 1) for pair in raw_qs.split('&') if '=' in pair]
-            qs_dict = {k: v for k, v in qs_pairs}
-            token = qs_dict.get('token')
-        except Exception as e:
-            logger.error("Failed to parse rawQueryString: %s", e)
+        parsed_qs = urllib.parse.parse_qs(raw_qs)
+        token_list = parsed_qs.get('token')
+        if token_list:
+            token = token_list[0]
 
     if not token:
         logger.warning("No JWT token found in connect request")
         raise Exception("Unauthorized")
 
+    # Validate the JWT token
     try:
         global _jwks_cache
         if not _jwks_cache:
@@ -78,6 +71,7 @@ def lambda_handler(event, context):
         logger.error("JWT validation failed: %s", e)
         raise Exception("Unauthorized")
 
+    # Store the connection information in DynamoDB.
     try:
         connection_id = event.get("requestContext", {}).get("connectionId")
         conn_table.put_item(Item={"UserId": principal_id, "ConnectionId": connection_id})
@@ -99,4 +93,5 @@ def lambda_handler(event, context):
             "username": claims.get('cognito:username', principal_id)
         }
     }
+    logger.info("Authorization successful for principal: %s", principal_id)
     return policy
