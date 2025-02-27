@@ -1,4 +1,3 @@
-# file: test_authorizer.py
 import json
 import pytest
 import urllib.request
@@ -23,18 +22,14 @@ DUMMY_JWKS = {
 ###############################
 # Mocks / Helper Functions
 ###############################
-
 class DummyResponse:
     """Simulates the response object returned by urllib.request.urlopen."""
     def __init__(self, data):
         self.data = data.encode('utf-8')
-
     def read(self):
         return self.data
-
     def __enter__(self):
         return self
-
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
@@ -63,11 +58,9 @@ def mock_jwt_decode_fail(token, key, algorithms, audience, issuer):
     """Always raise an exception to simulate invalid token."""
     raise Exception("Invalid token")
 
-
 ###############################
 # Pytest Test Cases
 ###############################
-
 @patch.object(urllib.request, "urlopen", side_effect=mock_urlopen)
 def test_no_token(mock_url):
     """No token in query params -> Unauthorized"""
@@ -83,7 +76,7 @@ def test_no_token(mock_url):
 @patch.object(RSAAlgorithm, "from_jwk", side_effect=mock_from_jwk)
 @patch.object(jwt, "get_unverified_header", side_effect=mock_get_unverified_header)
 @patch.object(jwt, "decode", side_effect=mock_jwt_decode_success)
-def test_valid_token_query_param(mock_decode, mock_header, mock_jwk, mock_url):
+def test_valid_token_query_param(mock_decode, mock_header, mock_from, mock_url):
     """Token in query param -> Should succeed"""
     event = {
         "queryStringParameters": {"token": "dummy_token"},
@@ -91,17 +84,15 @@ def test_valid_token_query_param(mock_decode, mock_header, mock_jwk, mock_url):
         "methodArn": "arn:aws:execute-api:region:acct:apiId/stage/$connect"
     }
     result = lambda_handler(event, None)
+    assert result["isAuthorized"] is True
     assert result["principalId"] == "user123"
     assert result["context"]["username"] == "testuser"
-    assert result["policyDocument"]["Statement"][0]["Effect"] == "Allow"
-    assert result["policyDocument"]["Statement"][0]["Resource"] == event["methodArn"]
-
 
 @patch.object(urllib.request, "urlopen", side_effect=mock_urlopen)
 @patch.object(RSAAlgorithm, "from_jwk", side_effect=mock_from_jwk)
 @patch.object(jwt, "get_unverified_header", side_effect=mock_get_unverified_header)
 @patch.object(jwt, "decode", side_effect=mock_jwt_decode_fail)
-def test_invalid_jwt(mock_decode, mock_header, mock_jwk, mock_url):
+def test_invalid_jwt(mock_decode, mock_header, mock_from, mock_url):
     """Invalid token -> Unauthorized"""
     event = {
         "queryStringParameters": {"token": "dummy_token"},

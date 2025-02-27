@@ -1,4 +1,3 @@
-# file: authorizer.py
 import json
 import os
 import urllib.request
@@ -51,15 +50,8 @@ def lambda_handler(event, context):
     # 3. Build allow policy with context
     principal_id = claims.get("sub") or "user"
     return {
+        "isAuthorized": True,
         "principalId": principal_id,
-        "policyDocument": {
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Action": "execute-api:Invoke",
-                "Effect": "Allow",
-                "Resource": event["methodArn"]
-            }]
-        },
         "context": {
             "username": claims.get("cognito:username", ""),
             "sub": claims.get("sub", "")
