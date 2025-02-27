@@ -12,7 +12,7 @@ jobs:
 
     env:
       AWS_REGION: us-east-1
-      ECR_REPOSITORY: connector
+      ECR_REPOSITORY: chat-api-connect
       IMAGE_TAG: latest
       PYTHONPATH: ${{ github.workspace }}/src
 
