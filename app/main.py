@@ -24,7 +24,7 @@ def lambda_handler(event, context):
     # Extract both userId and tenant_id if available.
     user_id = authorizer_context.get("principalId")
     # You may have tenant information provided either separately or as part of the user's claims.
-    tenant_id = authorizer_context.get("tenant_id") or user_id
+    tenant_id = authorizer_context.get("tenant_id")
 
     # Build the item to store; include tenant_id.
     item = {
