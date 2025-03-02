@@ -14,7 +14,7 @@ def lambda_handler(event, context):
     Handle new WebSocket connection: store connection ID (and user info) in DynamoDB.
     Requires a valid authorizer context to proceed.
     """
-    connection_id = event["requestContext"]["connectionId"]
+    connection_id = event["requestContext"]["connection_id"]
 
     authorizer_context = event["requestContext"].get("authorizer")
     if not authorizer_context:
@@ -22,7 +22,7 @@ def lambda_handler(event, context):
         return {"statusCode": 403, "body": "Unauthorized"}
 
     user_id = authorizer_context.get("principalId")
-    item = {"connectionId": connection_id}
+    item = {"connection_id": connection_id}
     if user_id:
         item["userId"] = user_id
 
@@ -31,7 +31,7 @@ def lambda_handler(event, context):
         table.put_item(Item=item)
         logger.info(f"Connected: stored connection {connection_id}" + (f" for user {user_id}" if user_id else ""))
     except Exception as e:
-        logger.error(f"Error storing connectionId {connection_id} in DynamoDB: {e}")
+        logger.error(f"Error storing connection_id {connection_id} in DynamoDB: {e}")
         return {"statusCode": 500, "body": "Failed to connect."}
 
     return {"statusCode": 200, "body": "Connected."}
