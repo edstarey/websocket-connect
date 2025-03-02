@@ -5,13 +5,15 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 def get_table():
     return boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"])
 
+
 def lambda_handler(event, context):
     """
-    Handle new WebSocket connection: store connection ID (and tenant info) in DynamoDB.
-    Requires a valid authorizer context to proceed.
+    Handle new WebSocket connection: store connection ID along with tenant info.
+    Expects tenant info to be provided in the query string parameters.
     """
     connectionId = event["requestContext"]["connectionId"]
 
@@ -21,15 +23,21 @@ def lambda_handler(event, context):
         logger.error("Unauthorized: no authorizer provided.")
         return {"statusCode": 403, "body": "Unauthorized"}
 
-    # Extract both userId and tenant_id if available.
+    # Extract userId from the authorizer.
     user_id = authorizer_context.get("principalId")
-    # You may have tenant information provided either separately or as part of the user's claims.
-    tenant_id = authorizer_context.get("tenant_id")
 
-    # Build the item to store; include tenant_id.
+    # Extract tenant info from the query parameters (or headers) sent by the frontend.
+    # For example, if your frontend sends the tenant as a query parameter "tenantId".
+    tenant_id = event.get("queryStringParameters", {}).get("tenantId")
+    if not tenant_id:
+        # Optionally, you can fallback to a default value or reject the connection.
+        logger.error("Tenant information is missing in the connection request.")
+        return {"statusCode": 400, "body": "Tenant information is required."}
+
+    # Build the item to store.
     item = {
         "connectionId": connectionId,
-        "tenant_id": tenant_id  # explicitly store tenant_id for later queries
+        "tenant_id": tenant_id  # now explicitly provided by the frontend
     }
     if user_id:
         item["userId"] = user_id
