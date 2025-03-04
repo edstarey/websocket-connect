@@ -1,12 +1,10 @@
-# Use an AWS Lambda base image for Python 3.10
-FROM public.ecr.aws/lambda/python:3.10
+FROM public.ecr.aws/lambda/python:3.13
 
-# Copy the requirements file and install dependencies
-COPY requirements/requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
-RUN pip install --upgrade pip && \
-    pip install -r ${LAMBDA_TASK_ROOT}/requirements.txt
+WORKDIR /var/task
 
-# Copy the entire project into the Lambda task root
-COPY . ${LAMBDA_TASK_ROOT}
+COPY requirements/requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-CMD ["app.main.lambda_handler"]
+COPY src/ .
+
+CMD ["src.main.ai_response_generator.lambda_handler"]

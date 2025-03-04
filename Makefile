@@ -1,41 +1,19 @@
-.PHONY: venv install install-dev test coverage clean help
+.PHONY: install install-dev test clean uninstall
 
-# Create a fresh virtual environment (removes any existing venv)
-venv:
-	@echo "Creating virtual environment..."
-	@rm -rf venv
-	python3 -m venv venv
+install:
+	python3 -m pip install --break-system-packages -r requirements/requirements.txt
 
-# Install production dependencies inside the virtual environment
-install: venv ## Install production dependencies
-	@echo "Upgrading pip and installing production dependencies..."
-	venv/bin/pip install --upgrade pip
-	venv/bin/pip install -r requirements/requirements.txt
+install-dev:
+	python3 -m pip install --break-system-packages -r requirements/requirements-dev.txt
 
-# Install development dependencies (includes production deps)
-install-dev: venv ## Install development dependencies
-	@echo "Upgrading pip and installing development dependencies..."
-	venv/bin/pip install --upgrade pip
-	venv/bin/pip install -r requirements/requirements-dev.txt
-
-# Run all unit tests using pytest from the virtual environment
-test: ## Run unit tests
-	venv/bin/pytest -v
-
-# Run tests with coverage report using pytest-cov
-coverage: ## Run tests with coverage report
-	venv/bin/pytest -v --cov-report=term-missing --cov .
+test:
+	pytest tests/
 
 clean:
-	@echo "Cleaning up virtual environment and __pycache__ directories..."
-	rm -rf venv
 	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
+	rm -rf build/ dist/ *.egg-info/
 
-help:
-	@echo "Makefile commands:"
-	@echo "  venv         - Create a fresh virtual environment"
-	@echo "  install      - Install production dependencies"
-	@echo "  install-dev  - Install development dependencies"
-	@echo "  test         - Run unit tests"
-	@echo "  coverage     - Run tests with coverage report"
-	@echo "  clean        - Remove the virtual environment and clean caches"
+uninstall:
+	python3 -m pip uninstall --break-system-packages -y -r requirements/requirements.txt
+	python3 -m pip uninstall --break-system-packages -y -r requirements/requirements-dev.txt

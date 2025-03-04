@@ -12,10 +12,9 @@ jobs:
 
     env:
       AWS_REGION: us-east-1
-      ECR_REPOSITORY: chat-api-connect
+      ECR_REPOSITORY: websocket-connect
       IMAGE_TAG: latest
       PYTHONPATH: ${{ github.workspace }}/src
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -47,9 +46,10 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
+      - name: Set ECR Registry Environment Variable
+        run: echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+
       - name: Build Docker Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           echo "Building Docker image..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -60,8 +60,6 @@ jobs:
           docker images
 
       - name: Push Docker Image to Amazon ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           echo "Pushing Docker image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG

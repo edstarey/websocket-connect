@@ -5,10 +5,8 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
 def get_table():
     return boto3.resource("dynamodb", region_name="us-east-1").Table(os.environ["TABLE_NAME"])
-
 
 def lambda_handler(event, context):
     """
@@ -27,17 +25,15 @@ def lambda_handler(event, context):
     user_id = authorizer_context.get("principalId")
 
     # Extract tenant info from the query parameters (or headers) sent by the frontend.
-    # For example, if your frontend sends the tenant as a query parameter "tenantId".
     tenant_id = event.get("queryStringParameters", {}).get("tenantId")
     if not tenant_id:
-        # Optionally, you can fallback to a default value or reject the connection.
         logger.error("Tenant information is missing in the connection request.")
         return {"statusCode": 400, "body": "Tenant information is required."}
 
     # Build the item to store.
     item = {
         "connectionId": connectionId,
-        "tenant_id": tenant_id  # now explicitly provided by the frontend
+        "tenant_id": tenant_id
     }
     if user_id:
         item["userId"] = user_id
